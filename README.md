@@ -1,7 +1,7 @@
 # tictock
 
 `tictock` is a polished, configurable clock for your terminal with 18 distinctive faces. It is
-written in Rust, ships as a single lightweight `clock` binary, and idles at ~0% CPU.
+written in Rust, ships as a single lightweight `tictock` binary, and idles at ~0% CPU.
 
 ```
       ██       ██████                    ██       ██                      ██     ██████
@@ -55,7 +55,7 @@ bigger the clock. Press `+`/`-` to override the size, `0` to go back to auto.
 **Homebrew (macOS/Linux):**
 
 ```sh
-brew install hainanzhao/tap/clock
+brew install hainanzhao/tap/tictock
 ```
 
 **Linux/macOS (prebuilt binary):**
@@ -85,9 +85,9 @@ cargo install --git https://github.com/HainanZhao/tictock
 ## Usage
 
 ```sh
-clock                       # show the clock using your saved config
-clock --face analog         # try a face for this run only (doesn't save)
-clock --face digital --color green --no-date
+tictock                       # show the clock using your saved config
+tictock --face analog         # try a face for this run only (doesn't save)
+tictock --face digital --color green --no-date
 ```
 
 While running:
@@ -112,16 +112,16 @@ you left off. One-off `--flag` overrides are *not* saved.
 
 ## Configuring
 
-Settings persist in a small TOML file so `clock` always starts the way you
+Settings persist in a small TOML file so `tictock` always starts the way you
 like it, without needing flags every time.
 
 ```sh
-clock config path              # print the config file location
-clock config show              # print the current config
-clock config set face analog   # persist a setting
-clock config set color "#33ccff"
-clock config colors            # list built-in color names
-clock config reset             # back to defaults
+tictock config path              # print the config file location
+tictock config show              # print the current config
+tictock config set face analog   # persist a setting
+tictock config set color "#33ccff"
+tictock config colors            # list built-in color names
+tictock config reset             # back to defaults
 ```
 
 Config file (created on first `config set`, edit by hand too):
@@ -145,11 +145,11 @@ Faces are drawn with a controlled gradient running from `color` to
 one coherent color family; set an explicit accent to enable a two-color theme.
 
 Colors accept the standard ANSI names (`red`, `green`, `blue`, ...) or
-`#rrggbb` for truecolor terminals. Run `clock config colors` for the full
+`#rrggbb` for truecolor terminals. Run `tictock config colors` for the full
 built-in list.
 
 Every setting also has a matching `--flag` for one-off overrides — see
-`clock --help`.
+`tictock --help`.
 
 ## Rendering
 
@@ -177,7 +177,7 @@ those artifacts, and no amount of snapping or chamfering fixes the mismatch.
 
 ## Why it's lightweight
 
-`clock` does no polling or busy-waiting. It sleeps until the display would
+`tictock` does no polling or busy-waiting. It sleeps until the display would
 actually change — every 500ms to blink the digital colon, every second for a
 seconds readout, or once a minute with seconds hidden — and otherwise sits
 at 0% CPU, backed by your OS's native event notification (kqueue/epoll/IOCP)
@@ -189,7 +189,7 @@ via [crossterm](https://github.com/crossterm-rs/crossterm).
 git clone https://github.com/HainanZhao/tictock
 cd tictock
 cargo build --release
-./target/release/clock
+./target/release/tictock
 ```
 
 ## License

@@ -13,7 +13,7 @@ use config::{Config, Face};
 
 /// A beautiful, configurable clock for your terminal.
 #[derive(Parser)]
-#[command(name = "clock", version, about)]
+#[command(name = "tictock", version, about)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -45,7 +45,7 @@ struct Overrides {
     /// Hide today's date.
     #[arg(long)]
     no_date: bool,
-    /// Primary color (digits / clock face). See `clock config colors`.
+    /// Primary color (digits / clock face). See `tictock config colors`.
     #[arg(long)]
     color: Option<String>,
     /// Accent color (blinking colon / clock hands).
@@ -149,7 +149,7 @@ enum ConfigAction {
     Path,
     /// Print the current config (as TOML).
     Show,
-    /// Set a config value and save it, e.g. `clock config set face analog`.
+    /// Set a config value and save it, e.g. `tictock config set face analog`.
     Set { key: String, value: String },
     /// Reset the config file to defaults.
     Reset,

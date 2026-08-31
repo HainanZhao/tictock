@@ -1,10 +1,10 @@
 #!/usr/bin/env sh
-# Installs the latest `clock` release for Linux or macOS.
+# Installs the latest `tictock` release for Linux or macOS.
 #   curl -fsSL https://raw.githubusercontent.com/HainanZhao/tictock/main/install.sh | sh
 set -eu
 
 REPO="HainanZhao/tictock"
-INSTALL_DIR="${CLOCK_INSTALL_DIR:-/usr/local/bin}"
+INSTALL_DIR="${TICTOCK_INSTALL_DIR:-${CLOCK_INSTALL_DIR:-/usr/local/bin}}"
 
 os="$(uname -s)"
 arch="$(uname -m)"
@@ -28,21 +28,21 @@ if [ -z "$tag" ]; then
   exit 1
 fi
 
-url="https://github.com/${REPO}/releases/download/${tag}/clock-${target}.tar.gz"
+url="https://github.com/${REPO}/releases/download/${tag}/tictock-${target}.tar.gz"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-echo "Downloading clock ${tag} for ${target}..."
-curl -fsSL "$url" -o "$tmp/clock.tar.gz"
-tar -xzf "$tmp/clock.tar.gz" -C "$tmp"
+echo "Downloading tictock ${tag} for ${target}..."
+curl -fsSL "$url" -o "$tmp/tictock.tar.gz"
+tar -xzf "$tmp/tictock.tar.gz" -C "$tmp"
 
 if [ -w "$INSTALL_DIR" ]; then
-  mv "$tmp/clock" "$INSTALL_DIR/clock"
+  mv "$tmp/tictock" "$INSTALL_DIR/tictock"
 else
   echo "Need sudo to write to $INSTALL_DIR"
-  sudo mv "$tmp/clock" "$INSTALL_DIR/clock"
+  sudo mv "$tmp/tictock" "$INSTALL_DIR/tictock"
 fi
-chmod +x "$INSTALL_DIR/clock"
+chmod +x "$INSTALL_DIR/tictock"
 
-echo "Installed to ${INSTALL_DIR}/clock"
-echo "Run 'clock' to start, or 'clock --help' for options."
+echo "Installed to ${INSTALL_DIR}/tictock"
+echo "Run 'tictock' to start, or 'tictock --help' for options."

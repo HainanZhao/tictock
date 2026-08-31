@@ -1,6 +1,6 @@
 //! Persisted user configuration: which face to draw, colors, and display options.
 //!
-//! Lives at `$XDG_CONFIG_HOME/clock/config.toml` (or the platform equivalent
+//! Lives at `$XDG_CONFIG_HOME/tictock/config.toml` (or the platform equivalent
 //! via the `dirs` crate). Every field has `#[serde(default)]` so old config
 //! files keep loading after new fields are added.
 
@@ -321,12 +321,27 @@ impl Config {
     pub fn path() -> Result<PathBuf> {
         let dir =
             dirs::config_dir().context("could not determine the platform config directory")?;
-        Ok(dir.join("clock").join("config.toml"))
+        Ok(dir.join("tictock").join("config.toml"))
     }
 
     /// Loads the config file, falling back to defaults if it doesn't exist yet.
     pub fn load() -> Result<Self> {
         let path = Self::path()?;
+        let path = if path.exists() {
+            path
+        } else {
+            // Preserve existing preferences from releases that used the old
+            // `clock` product name. The next save writes them to `tictock`.
+            let legacy = dirs::config_dir()
+                .context("could not determine the platform config directory")?
+                .join("clock")
+                .join("config.toml");
+            if legacy.exists() {
+                legacy
+            } else {
+                path
+            }
+        };
         if !path.exists() {
             return Ok(Config::default());
         }

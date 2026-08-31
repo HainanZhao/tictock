@@ -1,6 +1,6 @@
 [package]
 name = "tictock"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 description = "A polished, configurable terminal clock with 18 distinctive faces"
 license = "MIT"
@@ -9,7 +9,7 @@ readme = "README.md"
 authors = ["Hainan Zhao"]
 
 [[bin]]
-name = "clock"
+name = "tictock"
 path = "src/main.rs"
 
 [dependencies]

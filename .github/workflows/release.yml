@@ -1,6 +1,6 @@
 name: Release
 
-# Triggered by pushing a tag like `v0.1.0`. Cross-compiles the clock binary
+# Triggered by pushing a tag like `v0.1.0`. Cross-compiles the tictock binary
 # for macOS (arm64 + x86_64), Linux (x86_64 + arm64), and Windows (x86_64),
 # then attaches the archives to a GitHub Release. The Homebrew formula and
 # install.sh both fetch these exact archive names, so keep them in sync if
@@ -69,23 +69,23 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/clock dist/
+          cp target/${{ matrix.target }}/release/tictock dist/
           cp README.md LICENSE dist/
-          tar -C dist -czf clock-${{ matrix.target }}.tar.gz clock README.md LICENSE
+          tar -C dist -czf tictock-${{ matrix.target }}.tar.gz tictock README.md LICENSE
 
       - name: Package (windows)
         if: matrix.archive == 'zip'
         shell: bash
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/clock.exe dist/
+          cp target/${{ matrix.target }}/release/tictock.exe dist/
           cp README.md LICENSE dist/
-          cd dist && 7z a ../clock-${{ matrix.target }}.zip clock.exe README.md LICENSE
+          cd dist && 7z a ../tictock-${{ matrix.target }}.zip tictock.exe README.md LICENSE
 
       - uses: actions/upload-artifact@v4
         with:
-          name: clock-${{ matrix.target }}
-          path: clock-${{ matrix.target }}.*
+          name: tictock-${{ matrix.target }}
+          path: tictock-${{ matrix.target }}.*
 
   release:
     needs: build

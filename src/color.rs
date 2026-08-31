@@ -103,7 +103,7 @@ pub fn dim(c: Color, factor: f64) -> Color {
     }
 }
 
-/// The list of built-in color names, shown in `clock config colors`.
+/// The list of built-in color names, shown in `tictock config colors`.
 pub const NAMES: &[&str] = &[
     "black",
     "red",
