@@ -69,10 +69,115 @@ fn spawn_food(cols: usize, rows: usize, occupied: &HashSet<Point>, rng: &mut Rng
         .unwrap_or((0, 0))
 }
 
-/// Advances the game by one step: the snake heads toward the food, preferring
-/// whichever axis closes the bigger gap, and steers around its own body and
-/// the walls. Cornering itself — or growing past `max_len` — restarts the run
-/// in place, which is exactly the "reset" behavior asked for.
+fn current_direction(body: &VecDeque<Point>) -> Point {
+    let head = body[0];
+    let neck = body.get(1).copied().unwrap_or((head.0 - 1, head.1));
+    (head.0 - neck.0, head.1 - neck.1)
+}
+
+fn manhattan(a: Point, b: Point) -> i32 {
+    (a.0 - b.0).abs() + (a.1 - b.1).abs()
+}
+
+fn is_safe(point: Point, cols: usize, rows: usize, occupied: &HashSet<Point>) -> bool {
+    point.0 >= 0
+        && point.1 >= 0
+        && point.0 < cols as i32
+        && point.1 < rows as i32
+        && !occupied.contains(&point)
+}
+
+fn clear_run(
+    head: Point,
+    direction: Point,
+    cols: usize,
+    rows: usize,
+    occupied: &HashSet<Point>,
+) -> usize {
+    (1..)
+        .map(|distance| {
+            (
+                head.0 + direction.0 * distance,
+                head.1 + direction.1 * distance,
+            )
+        })
+        .take_while(|point| is_safe(*point, cols, rows, occupied))
+        .count()
+}
+
+/// Chooses a calm, human-like move. Once the snake commits to an axis that
+/// approaches the food, it stays on that axis until aligned or obstructed.
+/// This produces an L-shaped route in open space instead of alternating axes
+/// every tick. Detours also favor continuing straight and long clear runs.
+fn choose_direction(
+    cols: usize,
+    rows: usize,
+    body: &VecDeque<Point>,
+    occupied: &HashSet<Point>,
+    food: Point,
+) -> Option<Point> {
+    const DIRECTIONS: [Point; 4] = [(1, 0), (0, 1), (-1, 0), (0, -1)];
+    let head = body[0];
+    let current = current_direction(body);
+    let distance = manhattan(head, food);
+    let safe: Vec<Point> = DIRECTIONS
+        .into_iter()
+        .filter(|direction| {
+            is_safe(
+                (head.0 + direction.0, head.1 + direction.1),
+                cols,
+                rows,
+                occupied,
+            )
+        })
+        .collect();
+
+    // Holding the current direction is the key to natural motion: finish
+    // this straight segment before making the one turn needed to align.
+    if safe.contains(&current) {
+        let next = (head.0 + current.0, head.1 + current.1);
+        if manhattan(next, food) < distance {
+            return Some(current);
+        }
+    }
+
+    // If a turn is required, choose a direction that approaches the target.
+    // Prefer the longer remaining axis, producing two deliberate segments
+    // rather than many short alternating ones.
+    if let Some(direction) = safe
+        .iter()
+        .copied()
+        .filter(|direction| {
+            let next = (head.0 + direction.0, head.1 + direction.1);
+            manhattan(next, food) < distance
+        })
+        .max_by_key(|direction| {
+            let axis_distance = if direction.0 == 0 {
+                (food.1 - head.1).abs()
+            } else {
+                (food.0 - head.0).abs()
+            };
+            (
+                axis_distance,
+                clear_run(head, *direction, cols, rows, occupied),
+            )
+        })
+    {
+        return Some(direction);
+    }
+
+    // A body segment may temporarily block every direct route. Continue the
+    // present line if possible; otherwise make the turn with the longest
+    // runway so the avoidance maneuver is broad rather than twitchy.
+    if safe.contains(&current) {
+        return Some(current);
+    }
+    safe.into_iter()
+        .max_by_key(|direction| clear_run(head, *direction, cols, rows, occupied))
+}
+
+/// Advances the game by one step using the turn-aware steering policy.
+/// Cornering itself — or growing past `max_len` — restarts the run in place.
 fn step(
     cols: usize,
     rows: usize,
@@ -83,30 +188,7 @@ fn step(
     max_len: usize,
 ) {
     let head = *body.front().expect("snake body is never empty");
-    let (dx, dy) = (food.0 - head.0, food.1 - head.1);
-    let horiz = (dx != 0).then_some((dx.signum(), 0));
-    let vert = (dy != 0).then_some((0, dy.signum()));
-
-    let mut prefs: Vec<Point> = Vec::with_capacity(4);
-    let (first, second) = if dx.abs() >= dy.abs() {
-        (horiz, vert)
-    } else {
-        (vert, horiz)
-    };
-    prefs.extend(first);
-    prefs.extend(second);
-    for d in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-        if !prefs.contains(&d) {
-            prefs.push(d);
-        }
-    }
-
-    let safe = prefs.into_iter().find(|d| {
-        let n = (head.0 + d.0, head.1 + d.1);
-        n.0 >= 0 && n.1 >= 0 && n.0 < cols as i32 && n.1 < rows as i32 && !occupied.contains(&n)
-    });
-
-    let Some(d) = safe else {
+    let Some(direction) = choose_direction(cols, rows, body, occupied, *food) else {
         let (b, o, f) = spawn(cols, rows, rng);
         *body = b;
         *occupied = o;
@@ -114,7 +196,7 @@ fn step(
         return;
     };
 
-    let next = (head.0 + d.0, head.1 + d.1);
+    let next = (head.0 + direction.0, head.1 + direction.1);
     body.push_front(next);
     occupied.insert(next);
 
@@ -305,5 +387,44 @@ mod tests {
         assert!(lines
             .iter()
             .any(|line| line.iter().any(|span| span.text.contains('●'))));
+    }
+
+    #[test]
+    fn open_route_uses_one_deliberate_turn_instead_of_zigzagging() {
+        let mut body: VecDeque<Point> = [(5, 5), (4, 5), (3, 5), (2, 5), (1, 5)].into();
+        let mut occupied: HashSet<Point> = body.iter().copied().collect();
+        let target = (12, 8);
+        let mut food = target;
+        let mut rng = Rng::new(7);
+        let mut directions = Vec::new();
+
+        for _ in 0..20 {
+            let before = body[0];
+            step(20, 12, &mut body, &mut occupied, &mut food, &mut rng, 60);
+            let after = body[0];
+            directions.push((after.0 - before.0, after.1 - before.1));
+            if after == target {
+                break;
+            }
+        }
+
+        assert_eq!(body[0], target);
+        assert_eq!(directions.len(), manhattan((5, 5), target) as usize);
+        let turns = directions
+            .windows(2)
+            .filter(|pair| pair[0] != pair[1])
+            .count();
+        assert_eq!(turns, 1, "route was not a clean L shape: {directions:?}");
+    }
+
+    #[test]
+    fn steering_holds_its_current_axis_until_aligned() {
+        let body: VecDeque<Point> = [(5, 5), (4, 5), (3, 5), (2, 5), (1, 5)].into();
+        let occupied: HashSet<Point> = body.iter().copied().collect();
+
+        assert_eq!(
+            choose_direction(20, 12, &body, &occupied, (12, 8)),
+            Some((1, 0))
+        );
     }
 }
