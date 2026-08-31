@@ -95,6 +95,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
 
     let (text, colons, suffix) = time_text(now, cfg);
     let n = text.chars().count();
+    let fit_n = if cfg.show_seconds { n } else { n + 3 };
 
     let mut extra: Vec<Line> = Vec::new();
     if !suffix.is_empty() {
@@ -114,7 +115,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     let fit = (1..=6)
         .rev()
         .find(|&u| {
-            let total_w = (14 * n - 4) * u;
+            let total_w = (14 * fit_n - 4) * u;
             let total_h = 9 * u;
             total_w <= avail_w && total_h <= usable_h
         })

@@ -306,18 +306,15 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Resolves the alarm setting, returning Some(HH:MM) if validly configured, or None.
+    /// Resolves the legacy alarm setting, returning a valid local time.
     pub fn resolve_alarm(&self) -> Option<String> {
         let val = self.alarm.as_ref()?;
-        if val.is_empty() || val.to_ascii_lowercase() == "none" {
+        if val.is_empty() || val.eq_ignore_ascii_case("none") {
             return None;
         }
-        // Verify format is roughly "HH:MM" (e.g. length 5 and contains ':')
-        if val.len() == 5 && val.contains(':') {
-            Some(val.clone())
-        } else {
-            None
-        }
+        chrono::NaiveTime::parse_from_str(val, "%H:%M")
+            .ok()
+            .map(|time| time.format("%H:%M").to_string())
     }
 
     /// Where the config file lives on this platform.
@@ -374,7 +371,7 @@ impl Config {
 
     /// Resolves the accent color, falling back to the primary color if set to "none" or empty.
     pub fn resolve_accent(&self) -> String {
-        if self.accent_color.is_empty() || self.accent_color.to_ascii_lowercase() == "none" {
+        if self.accent_color.is_empty() || self.accent_color.eq_ignore_ascii_case("none") {
             self.color.clone()
         } else {
             self.accent_color.clone()
@@ -407,5 +404,17 @@ mod tests {
         let unknown_toml = "face = \"obsolete_or_typo_face\"";
         let cfg_fallback: Config = toml::from_str(unknown_toml).unwrap();
         assert_eq!(cfg_fallback.face, Face::Digital);
+    }
+
+    #[test]
+    fn resolve_alarm_rejects_invalid_clock_times() {
+        let mut cfg = Config {
+            alarm: Some("23:59".to_string()),
+            ..Config::default()
+        };
+        assert_eq!(cfg.resolve_alarm().as_deref(), Some("23:59"));
+
+        cfg.alarm = Some("99:99".to_string());
+        assert_eq!(cfg.resolve_alarm(), None);
     }
 }

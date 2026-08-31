@@ -58,7 +58,7 @@ pub fn fit_unit(
     let fit_text = if show_seconds || text.chars().count() > 5 {
         text.to_string()
     } else {
-        format!("{}:00", text)
+        format!("{text}:00")
     };
     (1..=max_u.max(1))
         .rev()
@@ -241,13 +241,13 @@ mod tests {
     fn test_print_digits() {
         let u = 2;
         for &ghost in &[false, true] {
-            println!("=== GHOST SEGMENTS = {} ===", ghost);
+            println!("=== GHOST SEGMENTS = {ghost} ===");
             for &digit in &["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"] {
-                println!("=== Digit {} ===", digit);
+                println!("=== Digit {digit} ===");
                 let lines = render(digit, u, &[], ghost, &|_| crossterm::style::Color::Reset);
                 for (r, line) in lines.iter().enumerate() {
                     let row: String = line.iter().map(|s| &s.text).cloned().collect();
-                    println!("{:02}: |{}|", r, row);
+                    println!("{r:02}: |{row}|");
                 }
             }
         }
@@ -277,7 +277,7 @@ mod tests {
 
             // 1. Every single digit must always span the full height (meaning row 0 and row h-1 have at least one active pixel)
             let has_active_top = (0..w).any(|col| grid[col]);
-            assert!(has_active_top, "Digit '{}' is missing active pixels on the top row (row 0), meaning it's too short!", digit_char);
+            assert!(has_active_top, "Digit '{digit_char}' is missing active pixels on the top row (row 0), meaning it's too short!");
 
             let has_active_bottom = (0..w).any(|col| grid[(h - 1) * w + col]);
             assert!(has_active_bottom, "Digit '{}' is missing active pixels on the bottom row (row {}), meaning it's too short!", digit_char, h - 1);
@@ -286,7 +286,7 @@ mod tests {
             if s[1] {
                 for r in 0..(4 * u) {
                     let is_filled = ((w - tv)..w).any(|col| grid[r * w + col]);
-                    assert!(is_filled, "Digit '{}' has a gap or discontinuity in upper-right segment 'b' at row {}", digit_char, r);
+                    assert!(is_filled, "Digit '{digit_char}' has a gap or discontinuity in upper-right segment 'b' at row {r}");
                 }
             }
 
@@ -294,7 +294,7 @@ mod tests {
             if s[2] {
                 for r in (3 * u)..(7 * u) {
                     let is_filled = ((w - tv)..w).any(|col| grid[r * w + col]);
-                    assert!(is_filled, "Digit '{}' has a gap or discontinuity in lower-right segment 'c' at row {}", digit_char, r);
+                    assert!(is_filled, "Digit '{digit_char}' has a gap or discontinuity in lower-right segment 'c' at row {r}");
                 }
             }
 
@@ -304,8 +304,7 @@ mod tests {
                     let is_filled = (0..tv).any(|col| grid[r * w + col]);
                     assert!(
                         is_filled,
-                        "Digit '{}' has a gap or discontinuity in lower-left segment 'e' at row {}",
-                        digit_char, r
+                        "Digit '{digit_char}' has a gap or discontinuity in lower-left segment 'e' at row {r}"
                     );
                 }
             }
@@ -316,8 +315,7 @@ mod tests {
                     let is_filled = (0..tv).any(|col| grid[r * w + col]);
                     assert!(
                         is_filled,
-                        "Digit '{}' has a gap or discontinuity in upper-left segment 'f' at row {}",
-                        digit_char, r
+                        "Digit '{digit_char}' has a gap or discontinuity in upper-left segment 'f' at row {r}"
                     );
                 }
             }

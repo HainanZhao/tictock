@@ -245,7 +245,7 @@ fn run_alarm(action: AlarmAction, mut cfg: Config) -> Result<()> {
         }
         AlarmAction::Remove { index } => {
             if index >= cfg.alarms.len() {
-                bail!("Invalid alarm index: {}.", index);
+                bail!("Invalid alarm index: {index}.");
             }
             cfg.alarms.remove(index);
             cfg.save()?;
@@ -258,19 +258,19 @@ fn run_alarm(action: AlarmAction, mut cfg: Config) -> Result<()> {
         }
         AlarmAction::Enable { index } => {
             if index >= cfg.alarms.len() {
-                bail!("Invalid alarm index: {}.", index);
+                bail!("Invalid alarm index: {index}.");
             }
             cfg.alarms[index].enabled = true;
             cfg.save()?;
-            println!("Alarm {} enabled.", index);
+            println!("Alarm {index} enabled.");
         }
         AlarmAction::Disable { index } => {
             if index >= cfg.alarms.len() {
-                bail!("Invalid alarm index: {}.", index);
+                bail!("Invalid alarm index: {index}.");
             }
             cfg.alarms[index].enabled = false;
             cfg.save()?;
-            println!("Alarm {} disabled.", index);
+            println!("Alarm {index} disabled.");
         }
     }
     Ok(())
@@ -345,15 +345,12 @@ fn set_field(cfg: &mut Config, key: &str, value: &str) -> Result<()> {
         "tick_marks" => cfg.tick_marks = parse_bool(value)?,
         "ghost_segments" => cfg.ghost_segments = parse_bool(value)?,
         "alarm" => {
-            if value.to_ascii_lowercase() == "none" || value.is_empty() {
+            if value.eq_ignore_ascii_case("none") || value.is_empty() {
                 cfg.alarm = None;
+            } else if chrono::NaiveTime::parse_from_str(value, "%H:%M").is_ok() {
+                cfg.alarm = Some(value.to_string());
             } else {
-                // Validate alarm is roughly "HH:MM"
-                if value.len() == 5 && value.contains(':') {
-                    cfg.alarm = Some(value.to_string());
-                } else {
-                    bail!("alarm must be in \"HH:MM\" 24-hour format (or \"none\" to disable)");
-                }
+                bail!("alarm must be in \"HH:MM\" 24-hour format (or \"none\" to disable)");
             }
         }
         "second_step" => {

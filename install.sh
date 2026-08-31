@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
 # Installs the latest `clock` release for Linux or macOS.
-#   curl -fsSL https://raw.githubusercontent.com/hainanzhao/clock/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/HainanZhao/tictock/main/install.sh | sh
 set -eu
 
-REPO="hainanzhao/clock"
+REPO="HainanZhao/tictock"
 INSTALL_DIR="${CLOCK_INSTALL_DIR:-/usr/local/bin}"
 
 os="$(uname -s)"

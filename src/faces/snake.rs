@@ -1,5 +1,5 @@
-//! Snake clock face: a self-playing game of classic Snake fills the screen
-//! while the time reads as a header above it.
+//! Snake clock face: a composed, self-playing arcade board with square cells,
+//! a restrained HUD, deterministic movement, and a clear visual hierarchy.
 //!
 //! The whole game is a deterministic function of the wall clock rather than
 //! stored state: the current 15-minute window seeds the run, and every frame
@@ -10,7 +10,7 @@
 use crate::color;
 use crate::config::Config;
 use crate::render::{self, span, Line};
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, TimeZone};
 use std::collections::{HashSet, VecDeque};
 
 type Point = (i32, i32);
@@ -43,12 +43,12 @@ impl Rng {
     }
 }
 
-/// Starts a fresh run: a length-3 snake in the middle of the board, heading
+/// Starts a fresh run: a compact length-5 snake in the middle of the board, heading
 /// right, with one food cell placed somewhere it isn't.
 fn spawn(cols: usize, rows: usize, rng: &mut Rng) -> (VecDeque<Point>, HashSet<Point>, Point) {
     let cx = (cols / 2) as i32;
     let cy = (rows / 2) as i32;
-    let body: VecDeque<Point> = (0..3).map(|i| (cx - i, cy)).collect();
+    let body: VecDeque<Point> = (0..5).map(|i| (cx - i, cy)).collect();
     let occupied: HashSet<Point> = body.iter().copied().collect();
     let food = spawn_food(cols, rows, &occupied, rng);
     (body, occupied, food)
@@ -160,16 +160,18 @@ fn simulate(now: DateTime<Local>, cols: usize, rows: usize) -> (VecDeque<Point>,
 pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize) -> Vec<Line> {
     let primary = color::parse(&cfg.color);
     let accent = color::parse(&cfg.accent_color);
+    let border = color::dim(primary, 0.38);
+    let quiet = color::dim(primary, 0.14);
 
     let (time_text, _, suffix) = crate::faces::digital::time_text(now, cfg);
-    let header = if suffix.is_empty() {
+    let clock = if suffix.is_empty() {
         time_text
     } else {
         format!("{time_text} {suffix}")
     };
 
     let mut extra: Vec<Line> = Vec::new();
-    if cfg.show_date {
+    if cfg.show_date && avail_h >= 12 {
         extra.push(render::blank());
         extra.push(render::line(
             now.format("%A, %B %-d %Y").to_string(),
@@ -177,41 +179,131 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
         ));
     }
 
-    let mut lines: Vec<Line> = Vec::with_capacity(1 + avail_h + extra.len());
-    lines.push(render::line(header, primary));
-
-    let cols = avail_w;
-    let rows = avail_h.saturating_sub(1 + extra.len());
-    if cols < 6 || rows < 4 {
-        lines.extend(extra);
-        return lines;
+    // Two terminal columns by one row produces a physically square game
+    // cell on common terminal fonts. Cap the board width so a very wide
+    // terminal still reads as a deliberate object rather than an empty field.
+    let cols = avail_w.saturating_sub(2) / 2;
+    let cols = cols.min(48);
+    let rows = avail_h.saturating_sub(extra.len() + 6).min(24);
+    if cols < 8 || rows < 4 {
+        return vec![render::line(clock, primary)];
     }
 
     let (body, food) = simulate(now, cols, rows);
     let head = body[0];
-    let body_set: HashSet<Point> = body.iter().skip(1).copied().collect();
+    let board_w = cols * 2 + 2;
+    let mut lines: Vec<Line> = Vec::with_capacity(rows + 6 + extra.len());
+
+    // A balanced HUD: product name, time, and a compact live metric. Each
+    // region is pinned to the board width so nothing jumps as values change.
+    let left = "SNAKE";
+    let right = format!("LENGTH {:02}", body.len());
+    let inner_w = board_w.saturating_sub(2);
+    let used = left.chars().count() + clock.chars().count() + right.chars().count();
+    if used + 4 <= inner_w {
+        let free = inner_w - used;
+        let gap_left = free / 2;
+        let gap_right = free - gap_left;
+        lines.push(vec![
+            span(left, color::dim(primary, 0.72)),
+            span(" ".repeat(gap_left), primary),
+            span(&clock, accent),
+            span(" ".repeat(gap_right), primary),
+            span(right, color::dim(primary, 0.72)),
+        ]);
+    } else {
+        lines.push(render::line(clock.clone(), accent));
+    }
+    lines.push(render::blank());
+
+    lines.push(vec![
+        span("╭", border),
+        span("─".repeat(board_w - 2), border),
+        span("╮", border),
+    ]);
 
     for y in 0..rows {
-        let mut line: Line = Vec::new();
+        let mut line: Line = vec![span("│", border)];
         for x in 0..cols {
             let p = (x as i32, y as i32);
-            let (ch, color) = if p == head {
-                ('\u{25C6}', accent)
-            } else if body_set.contains(&p) {
-                ('\u{2588}', color::dim(primary, 0.85))
+            let (tile, tile_color) = if p == head {
+                let neck = body.get(1).copied().unwrap_or(head);
+                let marker = match (head.0 - neck.0, head.1 - neck.1) {
+                    (1, 0) => "▶ ",
+                    (-1, 0) => "◀ ",
+                    (0, -1) => "▲ ",
+                    _ => "▼ ",
+                };
+                (marker.to_string(), accent)
+            } else if let Some(index) = body.iter().position(|cell| *cell == p) {
+                let fade = 1.0 - index as f64 / body.len().max(2) as f64 * 0.58;
+                ("██".to_string(), color::dim(primary, fade))
             } else if p == food {
-                ('\u{2022}', accent)
+                (
+                    "● ".to_string(),
+                    color::lerp(accent, crossterm::style::Color::White, 0.28),
+                )
+            } else if (x + y * 3) % 11 == 0 {
+                ("· ".to_string(), quiet)
             } else {
-                (' ', primary)
+                ("  ".to_string(), quiet)
             };
             match line.last_mut() {
-                Some(last) if last.color == color => last.text.push(ch),
-                _ => line.push(span(ch.to_string(), color)),
+                Some(last) if last.color == tile_color => last.text.push_str(&tile),
+                _ => line.push(span(tile, tile_color)),
             }
         }
+        line.push(span("│", border));
         lines.push(line);
     }
 
+    lines.push(vec![
+        span("╰", border),
+        span("─".repeat(board_w - 2), border),
+        span("╯", border),
+    ]);
+
+    let anchor_ms = now.timestamp_millis().div_euclid(WINDOW_MS) * WINDOW_MS;
+    let next_reset = Local
+        .timestamp_millis_opt(anchor_ms + WINDOW_MS)
+        .single()
+        .map(|time| time.format("%H:%M").to_string())
+        .unwrap_or_else(|| "--:--".to_string());
+    lines.push(render::blank());
+    lines.push(render::line(
+        format!("AUTOPILOT  ·  NEXT RUN {next_reset}"),
+        color::dim(primary, 0.58),
+    ));
+
     lines.extend(extra);
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn polished_board_uses_square_cells_and_fits() {
+        let now = Local.with_ymd_and_hms(2026, 8, 17, 10, 9, 42).unwrap();
+        let cfg = Config {
+            show_date: true,
+            ..Config::default()
+        };
+        let lines = render(now, &cfg, 80, 24);
+        assert!(lines.len() <= 24);
+        assert!(lines.iter().all(|line| render::line_width(line) <= 80));
+        assert!(lines.iter().any(|line| {
+            line.iter().any(|span| {
+                span.text.contains('▶')
+                    || span.text.contains('◀')
+                    || span.text.contains('▲')
+                    || span.text.contains('▼')
+            })
+        }));
+        assert!(lines
+            .iter()
+            .any(|line| line.iter().any(|span| span.text.contains('●'))));
+    }
 }

@@ -47,7 +47,7 @@ fn thick_line(c: &mut Canvas, x0: f64, y0: f64, x1: f64, y1: f64, t: usize) {
 pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize) -> Vec<Line> {
     let primary = color::parse(&cfg.color);
     let accent = color::parse(&cfg.accent_color);
-    let sand_c = color::hue(color::SECOND_HUE);
+    let sand_c = accent;
 
     let mut extra: Vec<Line> = Vec::new();
     let fmt = if cfg.hour12 {

@@ -1,7 +1,7 @@
-# clock
+# tictock
 
-A beautiful, configurable clock for your terminal with multiple gorgeous faces — written in
-Rust, ships as a single lightweight binary, idles at ~0% CPU.
+`tictock` is a polished, configurable clock for your terminal with 18 distinctive faces. It is
+written in Rust, ships as a single lightweight `clock` binary, and idles at ~0% CPU.
 
 ```
       ██       ██████                    ██       ██                      ██     ██████
@@ -42,6 +42,7 @@ Rust, ships as a single lightweight binary, idles at ~0% CPU.
 | `ship`    | Maritime ship steering wheel with an elegant analog dial in the center |
 | `grid`    | Retro 3x5 block matrix digits rendered using solid square blocks ■ |
 | `warp`    | Star Trek warp-speed time travel effect, zooming in to the center |
+| `snake`   | A self-playing arcade board driven deterministically by wall-clock time |
 
 Switch faces live with the Left/Right arrow keys, or press `Tab` for a
 picker grid showing a live preview of every face at once.
@@ -60,19 +61,25 @@ brew install hainanzhao/tap/clock
 **Linux/macOS (prebuilt binary):**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/hainanzhao/clock/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/HainanZhao/tictock/main/install.sh | sh
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/hainanzhao/clock/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/HainanZhao/tictock/main/install.ps1 | iex
 ```
 
-**From source (any platform, requires Rust):**
+**From crates.io (any platform, requires Rust):**
 
 ```sh
-cargo install --git https://github.com/hainanzhao/clock
+cargo install tictock
+```
+
+**From the latest source:**
+
+```sh
+cargo install --git https://github.com/HainanZhao/tictock
 ```
 
 ## Usage
@@ -120,7 +127,7 @@ clock config reset             # back to defaults
 Config file (created on first `config set`, edit by hand too):
 
 ```toml
-face = "digital"          # digital, analog, binary, word, matrix, flip, waves, rings, roman, lcd, hourglass, blocks, cuckoo, radar, ship, grid, warp
+face = "digital"          # digital, analog, binary, word, matrix, flip, waves, rings, roman, lcd, hourglass, blocks, cuckoo, radar, ship, grid, warp, snake
 hour12 = true             # 12h with am/pm, or false for 24h
 show_seconds = true
 show_date = true
@@ -133,9 +140,9 @@ color = "#38d9e8"         # primary color
 accent_color = "none"     # "none" for solid colors, or hex/color for gradients
 ```
 
-Faces are drawn with a gradient running from `color` to `accent_color`, and
-the multi-color faces (`waves`, `rings`, `analog`, `binary`) additionally give
-the hour, minute and second their own hues.
+Faces are drawn with a controlled gradient running from `color` to
+`accent_color`. With the default `accent_color = "none"`, every face stays in
+one coherent color family; set an explicit accent to enable a two-color theme.
 
 Colors accept the standard ANSI names (`red`, `green`, `blue`, ...) or
 `#rrggbb` for truecolor terminals. Run `clock config colors` for the full
@@ -179,8 +186,8 @@ via [crossterm](https://github.com/crossterm-rs/crossterm).
 ## Building from source
 
 ```sh
-git clone https://github.com/hainanzhao/clock
-cd clock
+git clone https://github.com/HainanZhao/tictock
+cd tictock
 cargo build --release
 ./target/release/clock
 ```

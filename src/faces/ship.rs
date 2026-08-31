@@ -40,7 +40,10 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
 
     let r_inner = r * 0.60;
     let r_outer = r * 0.80;
-    let r_spoke = r * 1.08;
+    // Keep the handle tips and cross-guards inside the canvas. Extending
+    // beyond the nominal radius clips the cardinal handles and makes the
+    // wheel look accidentally cropped.
+    let r_spoke = r * 0.92;
 
     // Draw the steering wheel rims (inner and outer rings)
     wheel.circle(cx, cy, r_inner);
@@ -57,7 +60,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
             cy + r_spoke * theta.sin(),
         );
         // Draw small handle cross-guards at the tip of each spoke
-        let guard_len = r * 0.08;
+        let guard_len = r * 0.055;
         let guard_angle = theta + PI / 2.0;
         let tip_x = cx + r_spoke * theta.cos();
         let tip_y = cy + r_spoke * theta.sin();
@@ -91,7 +94,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     // Maritime colors: weathered wood/bronze (primary), ocean accent (accent), crimson seconds.
     let wheel_c = primary;
     let hands_c = accent;
-    let sec_c = color::hue(color::SECOND_HUE);
+    let sec_c = primary;
 
     let mut lines: Vec<Line> = Vec::with_capacity(rows + extra.len());
     for r_idx in 0..rows {

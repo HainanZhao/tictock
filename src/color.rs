@@ -103,39 +103,6 @@ pub fn dim(c: Color, factor: f64) -> Color {
     }
 }
 
-/// Hues used to tell the hour / minute / second components apart on the
-/// multi-color faces. All three sit on the cool-to-warm arc that avoids
-/// magenta, which reads as an odd purple against the default palette.
-pub const HOUR_HUE: f64 = 192.0;
-pub const MINUTE_HUE: f64 = 158.0;
-pub const SECOND_HUE: f64 = 36.0;
-
-/// A point on the HSV wheel, slightly desaturated so the colors read as a
-/// palette rather than raw primaries.
-pub fn hue(deg: f64) -> Color {
-    hsv(deg, 0.78, 0.98)
-}
-
-pub fn hsv(deg: f64, s: f64, v: f64) -> Color {
-    let h = deg.rem_euclid(360.0) / 60.0;
-    let i = h.floor() as i32;
-    let f = h - h.floor();
-    let (p, q, t) = (v * (1.0 - s), v * (1.0 - s * f), v * (1.0 - s * (1.0 - f)));
-    let (r, g, b) = match i {
-        0 => (v, t, p),
-        1 => (q, v, p),
-        2 => (p, v, t),
-        3 => (p, q, v),
-        4 => (t, p, v),
-        _ => (v, p, q),
-    };
-    Color::Rgb {
-        r: (r * 255.0).round() as u8,
-        g: (g * 255.0).round() as u8,
-        b: (b * 255.0).round() as u8,
-    }
-}
-
 /// The list of built-in color names, shown in `clock config colors`.
 pub const NAMES: &[&str] = &[
     "black",

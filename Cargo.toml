@@ -1,13 +1,12 @@
 [package]
-name = "clock"
-version = "0.6.0"
+name = "tictock"
+version = "0.7.0"
 edition = "2021"
-description = "A beautiful, configurable clock for your terminal with 12 faces"
+description = "A polished, configurable terminal clock with 18 distinctive faces"
 license = "MIT"
-repository = "https://github.com/hainanzhao/clock"
+repository = "https://github.com/HainanZhao/tictock"
 readme = "README.md"
 authors = ["Hainan Zhao"]
-publish = false
 
 [[bin]]
 name = "clock"

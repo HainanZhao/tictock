@@ -14,7 +14,12 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     let (text, _, suffix) = time_text(now, cfg);
     // Cards only for the digits; colons become a thin separator column.
     let digits: Vec<char> = text.chars().filter(|c| *c != ':').collect();
-    let groups = digits.len() / 2; // HH MM (SS)
+    let fit_digits = if cfg.show_seconds {
+        digits.len()
+    } else {
+        digits.len() + 2
+    };
+    let fit_groups = fit_digits / 2;
 
     let mut reserved = 0;
     if !suffix.is_empty() {
@@ -33,7 +38,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
         .find(|&u| {
             let cw = 8 * u + 4;
             let ch = 7 * u + 3;
-            let total_w = digits.len() * cw + groups.saturating_sub(1) * sep_w;
+            let total_w = fit_digits * cw + fit_groups.saturating_sub(1) * sep_w;
             total_w <= avail_w && ch <= usable_h
         })
         .unwrap_or(1);

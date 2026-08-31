@@ -91,9 +91,13 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     let blips_l = blips.lines();
 
     // Classic Radar Green or customized primary, bright ray, orange target blips.
-    let ray_c = color::hue(color::SECOND_HUE);
+    let ray_c = primary;
     let blip_c = accent;
     let grid_c = color::dim(primary, 0.35);
+    let time_fmt = if cfg.hour12 { "%I:%M %p" } else { "%H:%M" };
+    let time_label = format!(" {} ", now.format(time_fmt));
+    let label_row = rows * 3 / 4;
+    let label_start = cols.saturating_sub(time_label.chars().count()) / 2;
 
     let mut lines: Vec<Line> = Vec::with_capacity(rows + extra.len());
     for r_idx in 0..rows {
@@ -104,7 +108,15 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
         let mut out: Line = Vec::new();
         for i in 0..cols {
             let at = |v: &Vec<char>| v.get(i).copied().unwrap_or(' ');
-            let (ch, c) = if at(&bc) != ' ' {
+            let in_label = r_idx == label_row
+                && i >= label_start
+                && i < label_start + time_label.chars().count();
+            let (ch, c) = if in_label {
+                (
+                    time_label.chars().nth(i - label_start).unwrap_or(' '),
+                    accent,
+                )
+            } else if at(&bc) != ' ' {
                 (at(&bc), blip_c)
             } else if at(&rc) != ' ' {
                 (at(&rc), ray_c)

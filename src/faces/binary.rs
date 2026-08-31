@@ -31,9 +31,10 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
         groups.push(2);
     }
     let n = digits.len();
+    let fit_n = if cfg.show_seconds { n } else { n + 2 };
 
     let bcd_height = |cell: usize| {
-        let dot_h = (cell + 1) / 2;
+        let dot_h = cell.div_ceil(2);
         let gap_y = if dot_h > 1 { 1 } else { 0 };
         4 * dot_h + 3 * gap_y
     };
@@ -42,7 +43,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     let reserved = if cfg.show_date { 4 } else { 2 };
     let fit = (1..=6)
         .rev()
-        .find(|&c| (2 * n - 1) * c <= avail_w && bcd_height(c) + reserved <= avail_h)
+        .find(|&c| (2 * fit_n - 1) * c <= avail_w && bcd_height(c) + reserved <= avail_h)
         .unwrap_or(1);
     let cell = cfg.resolve_scale(fit);
     let dot_w = cell.max(1);
@@ -52,7 +53,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     let group_color = |g: usize| match g {
         0 => accent,
         1 => color::lerp(accent, primary, 0.6),
-        _ => color::hue(color::SECOND_HUE),
+        _ => primary,
     };
     let off = Color::DarkGrey;
 
@@ -79,7 +80,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     lines.push(header);
     lines.push(render::blank());
 
-    let dot_h = (dot_w + 1) / 2;
+    let dot_h = dot_w.div_ceil(2);
     let gap_y = if dot_h > 1 { 1 } else { 0 };
 
     for row in 0..4 {
@@ -101,16 +102,14 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
                 };
                 if lit {
                     l.push(span("\u{2588}".repeat(dot_w), c));
+                } else if sub_row == dot_h / 2 {
+                    let pad = dot_w / 2;
+                    let pad_after = dot_w - pad - 1;
+                    let cell_text =
+                        format!("{}{}{}", " ".repeat(pad), '\u{00b7}', " ".repeat(pad_after));
+                    l.push(span(cell_text, c));
                 } else {
-                    if sub_row == dot_h / 2 {
-                        let pad = dot_w / 2;
-                        let pad_after = dot_w - pad - 1;
-                        let cell_text =
-                            format!("{}{}{}", " ".repeat(pad), '\u{00b7}', " ".repeat(pad_after));
-                        l.push(span(cell_text, c));
-                    } else {
-                        l.push(span(" ".repeat(dot_w), c));
-                    }
+                    l.push(span(" ".repeat(dot_w), c));
                 }
             }
             lines.push(l);

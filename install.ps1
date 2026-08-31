@@ -1,8 +1,8 @@
 # Installs the latest `clock` release for Windows (x86_64).
-#   irm https://raw.githubusercontent.com/hainanzhao/clock/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/HainanZhao/tictock/main/install.ps1 | iex
 $ErrorActionPreference = "Stop"
 
-$repo = "hainanzhao/clock"
+$repo = "HainanZhao/tictock"
 $installDir = "$env:LOCALAPPDATA\clock"
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 

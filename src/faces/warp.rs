@@ -112,9 +112,9 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     // Central Time Card overlay (our destination in the space-time continuum!)
     let (t_str, _, suffix) = time_text(now, cfg);
     let display_text = if suffix.is_empty() {
-        format!("  {}  ", t_str)
+        format!("  {t_str}  ")
     } else {
-        format!("  {} {}  ", t_str, suffix)
+        format!("  {t_str} {suffix}  ")
     };
     let card_w = display_text.chars().count();
     let card_h = 3; // 1 border, 1 text, 1 border
@@ -125,9 +125,9 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     let border_c = color::dim(primary, 0.45);
 
     let mut lines: Vec<Line> = Vec::with_capacity(rows + extra.len());
-    for r_idx in 0..rows {
+    for (r_idx, canvas_line) in c_lines.iter().enumerate().take(rows) {
         let mut l: Line = Vec::new();
-        let cc: Vec<char> = c_lines[r_idx].chars().collect();
+        let cc: Vec<char> = canvas_line.chars().collect();
 
         // Check if we are drawing the central card on this row
         let in_card_y = r_idx >= card_top && r_idx < card_top + card_h;
@@ -155,12 +155,10 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
                     } else {
                         ('\u{2500}', border_c)
                     }
+                } else if cx_offset == 0 || cx_offset == card_w - 1 {
+                    ('\u{2502}', border_c)
                 } else {
-                    if cx_offset == 0 || cx_offset == card_w - 1 {
-                        ('\u{2502}', border_c)
-                    } else {
-                        (display_text.chars().nth(cx_offset).unwrap_or(' '), primary)
-                    }
+                    (display_text.chars().nth(cx_offset).unwrap_or(' '), primary)
                 };
                 match l.last_mut() {
                     Some(last) if last.color == color => last.text.push(ch),

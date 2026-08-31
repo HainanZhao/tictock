@@ -62,9 +62,9 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     // Central Time Card overlay
     let (t_str, _, suffix) = time_text(now, cfg);
     let display_text = if suffix.is_empty() {
-        format!("  {}  ", t_str)
+        format!("  {t_str}  ")
     } else {
-        format!("  {} {}  ", t_str, suffix)
+        format!("  {t_str} {suffix}  ")
     };
     let card_w = display_text.chars().count();
     let card_h = 3; // 1 border, 1 text, 1 border
@@ -74,7 +74,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
 
     let hr_c = accent;
     let min_c = color::lerp(accent, primary, 0.4);
-    let sec_c = color::hue(color::SECOND_HUE);
+    let sec_c = primary;
     let border_c = color::dim(primary, 0.45);
 
     let mut lines: Vec<Line> = Vec::with_capacity(rows + extra.len());
@@ -111,12 +111,10 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
                     } else {
                         ('\u{2500}', border_c)
                     }
+                } else if cx_offset == 0 || cx_offset == card_w - 1 {
+                    ('\u{2502}', border_c)
                 } else {
-                    if cx_offset == 0 || cx_offset == card_w - 1 {
-                        ('\u{2502}', border_c)
-                    } else {
-                        (display_text.chars().nth(cx_offset).unwrap_or(' '), primary)
-                    }
+                    (display_text.chars().nth(cx_offset).unwrap_or(' '), primary)
                 };
                 match l.last_mut() {
                     Some(last) if last.color == color => last.text.push(ch),

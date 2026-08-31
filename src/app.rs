@@ -3,7 +3,7 @@
 use crate::color;
 use crate::config::{Config, Face, MAX_SCALE};
 use crate::faces;
-use crate::render::{self, Line};
+use crate::render::{self, span, Line};
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Local, Timelike};
 use crossterm::cursor::{Hide, MoveTo, Show};
@@ -54,6 +54,28 @@ pub fn run(mut cfg: Config) -> Result<()> {
 struct ActiveAlarm {
     index: usize,
     candidate_date: chrono::NaiveDate,
+}
+
+fn legacy_alarm_active(cfg: &Config, now: DateTime<Local>) -> bool {
+    cfg.resolve_alarm()
+        .is_some_and(|alarm_time| now.format("%H:%M").to_string() == alarm_time)
+}
+
+fn active_alarm_still_valid(cfg: &Config, active: &ActiveAlarm, now: DateTime<Local>) -> bool {
+    let Some(alarm) = cfg.alarms.get(active.index) else {
+        return false;
+    };
+    if !alarm.enabled {
+        return false;
+    }
+    let Some(alarm_time) = alarm.get_time() else {
+        return false;
+    };
+
+    let scheduled_dt = active.candidate_date.and_time(alarm_time);
+    let trigger_start = scheduled_dt - chrono::Duration::minutes(alarm.trigger_offset_min as i64);
+    let now_naive = now.naive_local();
+    now_naive >= trigger_start && now_naive < scheduled_dt + chrono::Duration::minutes(5)
 }
 
 fn check_active_alarm(
@@ -244,13 +266,7 @@ fn next_wake(cfg: &Config, now: DateTime<Local>, active_alarm: bool) -> Duration
         return Duration::from_millis(crate::faces::snake::TICK_MS as u64);
     }
 
-    let in_alarm_minute = if let Some(alarm_time) = cfg.resolve_alarm() {
-        now.format("%H:%M").to_string() == alarm_time
-    } else {
-        false
-    };
-
-    let period_ms: i64 = if active_alarm || in_alarm_minute {
+    let period_ms: i64 = if active_alarm {
         250 // Pulse smoothly multiple times a second during the alarm!
     } else if blinks {
         500
@@ -296,6 +312,7 @@ fn event_loop(out: &mut Stdout, cfg: &mut Config) -> Result<()> {
     let mut selected_col: usize = 0;
     let mut active_alarm: Option<ActiveAlarm> = None;
     let mut dismissed_occurrences: Vec<(usize, chrono::NaiveDate)> = Vec::new();
+    let mut dismissed_legacy_occurrence: Option<(chrono::NaiveDate, u32, u32)> = None;
     let mut last_beep_second: Option<u32> = None;
 
     loop {
@@ -303,37 +320,22 @@ fn event_loop(out: &mut Stdout, cfg: &mut Config) -> Result<()> {
         if active_alarm.is_none() {
             active_alarm = check_active_alarm(cfg, now, &dismissed_occurrences);
         } else if let Some(ref active) = active_alarm {
-            let still_valid = if active.index < cfg.alarms.len() {
-                let alarm = &cfg.alarms[active.index];
-                if alarm.enabled {
-                    if let Some(alarm_time) = alarm.get_time() {
-                        let scheduled_dt = active.candidate_date.and_time(alarm_time);
-                        let trigger_start = scheduled_dt - chrono::Duration::minutes(1);
-                        let now_naive = now.naive_local();
-                        now_naive >= trigger_start
-                            && now_naive < scheduled_dt + chrono::Duration::minutes(5)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
-            if !still_valid {
+            if !active_alarm_still_valid(cfg, active, now) {
                 active_alarm = None;
                 needs_clear = true;
             }
         }
 
+        let legacy_occurrence = (now.date_naive(), now.hour(), now.minute());
+        let legacy_active =
+            legacy_alarm_active(cfg, now) && dismissed_legacy_occurrence != Some(legacy_occurrence);
+        let alarm_is_active = active_alarm.is_some() || legacy_active;
+
         let current_second = now.second();
-        if active_alarm.is_some() && current_second % 2 == 0 {
-            if last_beep_second != Some(current_second) {
-                last_beep_second = Some(current_second);
-                let _ = out.write_all(b"\x07");
-                let _ = out.flush();
-            }
+        if alarm_is_active && current_second % 2 == 0 && last_beep_second != Some(current_second) {
+            last_beep_second = Some(current_second);
+            let _ = out.write_all(b"\x07");
+            let _ = out.flush();
         }
 
         if needs_clear {
@@ -345,22 +347,28 @@ fn event_loop(out: &mut Stdout, cfg: &mut Config) -> Result<()> {
         } else {
             match picker {
                 Some(selected) => draw_picker(out, cfg, selected)?,
-                None => draw(out, cfg, active_alarm.is_some())?,
+                None => draw(out, cfg, alarm_is_active)?,
             }
         }
         let _ = out.write_all(b"\0");
         out.flush()?;
 
-        let wait =
-            next_wake(cfg, Local::now(), active_alarm.is_some()).min(Duration::from_millis(100));
+        let wait = next_wake(cfg, Local::now(), alarm_is_active).min(Duration::from_millis(100));
         if event::poll(wait)? {
             match event::read()? {
                 Event::Key(k) if k.kind == KeyEventKind::Press => {
-                    if let Some(active) = active_alarm.take() {
-                        dismissed_occurrences.push((active.index, active.candidate_date));
-                        if cfg.alarms[active.index].recurrence == crate::config::Recurrence::Once {
-                            cfg.alarms[active.index].enabled = false;
-                            let _ = cfg.save();
+                    if alarm_is_active {
+                        if let Some(active) = active_alarm.take() {
+                            dismissed_occurrences.push((active.index, active.candidate_date));
+                            if cfg.alarms[active.index].recurrence
+                                == crate::config::Recurrence::Once
+                            {
+                                cfg.alarms[active.index].enabled = false;
+                                let _ = cfg.save();
+                            }
+                        }
+                        if legacy_active {
+                            dismissed_legacy_occurrence = Some(legacy_occurrence);
                         }
                         needs_clear = true;
                         continue;
@@ -452,7 +460,7 @@ fn event_loop(out: &mut Stdout, cfg: &mut Config) -> Result<()> {
                                             let _ = terminal::enable_raw_mode();
                                             let _ = execute!(out, Hide);
                                             needs_clear = true;
-                                        } else {
+                                        } else if field == AlarmField::Enabled {
                                             cfg.alarms[selected].enabled =
                                                 !cfg.alarms[selected].enabled;
                                             let _ = cfg.save();
@@ -674,7 +682,7 @@ fn render_face(face: Face, now: DateTime<Local>, cfg: &Config, w: usize, h: usiz
     let mut resolved_cfg = cfg.clone();
     resolved_cfg.accent_color = cfg.resolve_accent();
     let cfg = &resolved_cfg;
-    match face {
+    let lines = match face {
         Face::Digital => faces::digital::render(now, cfg, w, h),
         Face::Analog => faces::analog::render(now, cfg, w, h),
         Face::Binary => faces::binary::render(now, cfg, w, h),
@@ -693,7 +701,88 @@ fn render_face(face: Face, now: DateTime<Local>, cfg: &Config, w: usize, h: usiz
         Face::Grid => faces::grid::render(now, cfg, w, h),
         Face::Warp => faces::warp::render(now, cfg, w, h),
         Face::Snake => faces::snake::render(now, cfg, w, h),
+    };
+
+    let rendered_w = lines.iter().map(render::line_width).max().unwrap_or(0);
+    if lines.len() <= h && rendered_w <= w {
+        lines
+    } else {
+        compact_face(face, now, cfg, w, h)
     }
+}
+
+/// A small but fully composed fallback for a face whose minimum geometric
+/// footprint cannot fit the available canvas. This is preferable to clipping:
+/// picker cards and narrow terminals retain hierarchy, identity, and time.
+fn compact_face(face: Face, now: DateTime<Local>, cfg: &Config, w: usize, h: usize) -> Vec<Line> {
+    if w == 0 || h == 0 {
+        return Vec::new();
+    }
+
+    let primary = color::parse(&cfg.color);
+    let accent = color::parse(&cfg.accent_color);
+    let (full_time, _, suffix) = faces::digital::time_text(now, cfg);
+    let mut clock = if suffix.is_empty() {
+        full_time.clone()
+    } else {
+        format!("{full_time} {suffix}")
+    };
+    if clock.chars().count() + 4 > w {
+        let short: String = full_time.chars().take(5).collect();
+        clock = if suffix.is_empty() || short.chars().count() + suffix.chars().count() + 5 > w {
+            short
+        } else {
+            format!("{short} {suffix}")
+        };
+    }
+
+    if h < 3 || w < 6 {
+        return vec![render::line(
+            clock.chars().take(w).collect::<String>(),
+            accent,
+        )];
+    }
+
+    let box_w = w.clamp(6, 30);
+    let inner_w = box_w - 2;
+    let label = face.to_string().to_uppercase();
+    let label: String = label.chars().take(inner_w.saturating_sub(2)).collect();
+    let mut top_inner = format!("─ {label} ");
+    top_inner.push_str(&"─".repeat(inner_w.saturating_sub(top_inner.chars().count())));
+
+    let clock: String = clock.chars().take(inner_w).collect();
+    let clock_w = clock.chars().count();
+    let left = (inner_w - clock_w) / 2;
+    let right = inner_w - clock_w - left;
+    let border = color::dim(primary, 0.42);
+    let mut lines = vec![
+        vec![
+            span("╭", border),
+            span(top_inner, border),
+            span("╮", border),
+        ],
+        vec![
+            span("│", border),
+            span(" ".repeat(left), primary),
+            span(clock, accent),
+            span(" ".repeat(right), primary),
+            span("│", border),
+        ],
+        vec![
+            span("╰", border),
+            span("─".repeat(inner_w), border),
+            span("╯", border),
+        ],
+    ];
+
+    if cfg.show_date && h >= 5 {
+        let date = now.format("%a, %b %-d").to_string();
+        if date.chars().count() <= w {
+            lines.push(render::blank());
+            lines.push(render::line(date, color::dim(primary, 0.68)));
+        }
+    }
+    lines
 }
 
 fn draw(out: &mut Stdout, cfg: &Config, is_alarm_active: bool) -> Result<()> {
@@ -707,18 +796,10 @@ fn draw(out: &mut Stdout, cfg: &Config, is_alarm_active: bool) -> Result<()> {
     let now = Local::now();
     let avail_h = term_h.saturating_sub(CHROME_H) as usize;
 
-    let in_alarm_minute = if let Some(alarm_time) = cfg.resolve_alarm() {
-        now.format("%H:%M").to_string() == alarm_time
-    } else {
-        false
-    };
-
     let mut current_cfg = cfg.clone();
     let mut bg_color = Color::Reset;
 
-    let is_flashing = is_alarm_active || in_alarm_minute;
-
-    if is_flashing && now.second() % 2 == 0 {
+    if is_alarm_active && now.second() % 2 == 0 {
         bg_color = Color::Red;
         current_cfg.color = "black".to_string();
         current_cfg.accent_color = "black".to_string();
@@ -792,7 +873,7 @@ fn draw_status(out: &mut Stdout, term_w: u16, term_h: u16, bg: Color) -> Result<
         MoveTo(0, term_h.saturating_sub(1)),
         SetBackgroundColor(bg),
         SetForegroundColor(Color::DarkGrey),
-        Print(format!("{}{}{}", left_pad, text, right_pad)),
+        Print(format!("{left_pad}{text}{right_pad}")),
         ResetColor
     )?;
     Ok(())
@@ -1058,10 +1139,7 @@ pub fn next_upcoming_alarm(cfg: &Config, now: DateTime<Local>) -> Option<String>
         let day_prefix = dt.format("%a ").to_string(); // e.g. "Mon "
         format!(
             "Alarm: {}{} ({}) [{}]",
-            day_prefix,
-            alarm.time,
-            alarm.name,
-            alarm.recurrence.to_string()
+            day_prefix, alarm.time, alarm.name, alarm.recurrence
         )
     })
 }
@@ -1218,7 +1296,7 @@ fn draw_alarm_manager(
         )?;
     } else {
         for (i, alarm) in cfg.alarms.iter().enumerate() {
-            if current_y as u16 >= term_h.saturating_sub(6) {
+            if current_y >= term_h.saturating_sub(6) {
                 break; // Don't overflow the screen
             }
 
@@ -1283,7 +1361,7 @@ fn draw_alarm_manager(
 
             // 2. Col 0: Status Toggle
             let highlight_0 = is_row_selected && current_field == Some(AlarmField::Enabled);
-            let status_text = format!("[{}]", status_str);
+            let status_text = format!("[{status_str}]");
             if highlight_0 {
                 queue!(
                     out,
@@ -1545,6 +1623,37 @@ mod tests {
     }
 
     #[test]
+    fn test_active_alarm_stays_valid_for_configured_offset() {
+        let mut cfg = Config::default();
+        cfg.alarms.push(Alarm {
+            name: "Early warning".to_string(),
+            time: "08:00".to_string(),
+            recurrence: Recurrence::Once,
+            start_date: "2026-08-17".to_string(),
+            day_of_week: None,
+            trigger_offset_min: 3,
+            enabled: true,
+        });
+
+        let now = Local.with_ymd_and_hms(2026, 8, 17, 7, 57, 30).unwrap();
+        let active = check_active_alarm(&cfg, now, &[]).unwrap();
+        assert!(active_alarm_still_valid(&cfg, &active, now));
+    }
+
+    #[test]
+    fn test_legacy_alarm_enters_active_state_only_in_matching_minute() {
+        let cfg = Config {
+            alarm: Some("08:00".to_string()),
+            ..Config::default()
+        };
+
+        let during = Local.with_ymd_and_hms(2026, 8, 17, 8, 0, 30).unwrap();
+        let after = Local.with_ymd_and_hms(2026, 8, 17, 8, 1, 0).unwrap();
+        assert!(legacy_alarm_active(&cfg, during));
+        assert!(!legacy_alarm_active(&cfg, after));
+    }
+
+    #[test]
     fn test_check_active_alarm_daily() {
         let mut cfg = Config::default();
         let alarm = Alarm {
@@ -1675,5 +1784,32 @@ mod tests {
         let summary = next_upcoming_alarm(&cfg, now);
         assert!(summary.is_some());
         assert_eq!(summary.unwrap(), "Alarm: Tue 15:00 (My Alarm) [weekly]");
+    }
+
+    #[test]
+    fn every_auto_scaled_face_fits_its_canvas() {
+        let now = Local.with_ymd_and_hms(2026, 8, 17, 10, 9, 42).unwrap();
+        let cfg = Config {
+            scale: 0,
+            show_date: true,
+            show_seconds: true,
+            blink_colon: false,
+            ..Config::default()
+        };
+
+        let mut failures = Vec::new();
+        for (width, height) in [(16, 6), (40, 12), (80, 24), (160, 48)] {
+            for face in Face::ALL {
+                let lines = render_face(face, now, &cfg, width, height);
+                let rendered_width = lines.iter().map(render::line_width).max().unwrap_or(0);
+                if lines.len() > height || rendered_width > width {
+                    failures.push(format!(
+                        "{face}: {rendered_width}x{} into {width}x{height}",
+                        lines.len()
+                    ));
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 }

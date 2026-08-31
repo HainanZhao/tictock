@@ -112,7 +112,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
             let fit_text = if cfg.show_seconds {
                 text.to_string()
             } else {
-                format!("{}:00", text)
+                format!("{text}:00")
             };
             ((total_px_w(&fit_text, s) / 2.0).ceil() as usize) < avail_w
                 && ((digit_h(s) / 4.0).ceil() as usize) < usable_h
@@ -148,12 +148,12 @@ mod tests {
     #[test]
     fn test_matrix_digits() {
         for scale in 1..=4 {
-            println!("=== SCALE {} ===", scale);
+            println!("=== SCALE {scale} ===");
             for &digit in &["0", "4"] {
-                println!("=== Digit {} ===", digit);
+                println!("=== Digit {digit} ===");
                 let plain = draw(digit, scale, &[]);
                 for line in plain {
-                    println!("{}", line);
+                    println!("{line}");
                 }
             }
         }

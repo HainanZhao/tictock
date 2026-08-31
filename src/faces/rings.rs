@@ -25,6 +25,7 @@ fn full_circle(canvas: &mut Canvas, cx: f64, cy: f64, r: f64) {
 
 pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize) -> Vec<Line> {
     let primary = color::parse(&cfg.color);
+    let accent = color::parse(&cfg.accent_color);
 
     let mut extra: Vec<Line> = Vec::new();
     if cfg.show_date {
@@ -47,9 +48,9 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
 
     // Outermost first so inner rings sit inside it.
     let specs = vec![
-        (s_frac, 1.00, color::hue(color::SECOND_HUE)),
-        (m_frac, 0.74, color::hue(color::MINUTE_HUE)),
-        (h_frac, 0.48, color::hue(color::HOUR_HUE)),
+        (s_frac, 1.00, primary),
+        (m_frac, 0.74, color::lerp(primary, accent, 0.5)),
+        (h_frac, 0.48, accent),
     ];
 
     let mut track_canvases = Vec::new();
@@ -68,7 +69,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
 
     // Centered time readout, overlaid on the middle of the rings.
     let time_fmt = if cfg.hour12 { "%I:%M" } else { "%H:%M" };
-    let center_text = now.format(time_fmt).to_string();
+    let center_text = format!(" {} ", now.format(time_fmt));
     let center_row = rows / 2;
     let center_start = cols.saturating_sub(center_text.chars().count()) / 2;
 

@@ -45,6 +45,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     let mut hour_hand = Canvas::new(cols, rows);
     let mut min_hand = Canvas::new(cols, rows);
     let mut sec_hand = Canvas::new(cols, rows);
+    let mut hub = Canvas::new(cols, rows);
 
     let cx = face.width_px() / 2.0;
     let cy = face.height_px() / 2.0;
@@ -64,27 +65,46 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
         }
     }
 
-    let hand = |canvas: &mut Canvas, len_frac: f64, units: f64, per_rev: f64| {
+    let hand = |canvas: &mut Canvas,
+                len_frac: f64,
+                tail_frac: f64,
+                units: f64,
+                per_rev: f64,
+                half_thickness: i32| {
         let theta = units / per_rev * TAU - std::f64::consts::FRAC_PI_2;
         let len = r * len_frac;
-        canvas.line(cx, cy, cx + len * theta.cos(), cy + len * theta.sin());
+        let tail = r * tail_frac;
+        let normal = (-theta.sin(), theta.cos());
+        for offset in -half_thickness..=half_thickness {
+            let offset = offset as f64;
+            canvas.line(
+                cx - tail * theta.cos() + normal.0 * offset,
+                cy - tail * theta.sin() + normal.1 * offset,
+                cx + len * theta.cos() + normal.0 * offset,
+                cy + len * theta.sin() + normal.1 * offset,
+            );
+        }
     };
 
     let hour_units = (now.hour() % 12) as f64 + now.minute() as f64 / 60.0;
     let min_units = now.minute() as f64 + now.second() as f64 / 60.0;
-    hand(&mut hour_hand, 0.50, hour_units, 12.0);
-    hand(&mut min_hand, 0.78, min_units, 60.0);
-    hand(&mut sec_hand, 0.92, now.second() as f64, 60.0);
+    hand(&mut hour_hand, 0.50, 0.02, hour_units, 12.0, 1);
+    hand(&mut min_hand, 0.78, 0.03, min_units, 60.0, 0);
+    hand(&mut sec_hand, 0.92, 0.12, now.second() as f64, 60.0, 0);
+    for pin_r in [0.5, 1.0, 1.5, 2.0] {
+        hub.circle(cx, cy, pin_r);
+    }
 
     let face_l = face.lines();
     let hour_l = hour_hand.lines();
     let min_l = min_hand.lines();
     let sec_l = sec_hand.lines();
+    let hub_l = hub.lines();
 
     // Each hand gets its own hue so the three are readable at a glance.
     let hour_c = accent;
     let min_c = color::lerp(accent, primary, 0.5);
-    let sec_c = color::hue(color::SECOND_HUE);
+    let sec_c = primary;
 
     let mut lines: Vec<Line> = Vec::with_capacity(rows + extra.len());
     for r_idx in 0..rows {
@@ -92,12 +112,16 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
         let hc: Vec<char> = hour_l[r_idx].chars().collect();
         let mc: Vec<char> = min_l[r_idx].chars().collect();
         let sc: Vec<char> = sec_l[r_idx].chars().collect();
+        let pc: Vec<char> = hub_l[r_idx].chars().collect();
 
         let mut out: Line = Vec::new();
         for i in 0..cols {
             let at = |v: &Vec<char>| v.get(i).copied().unwrap_or(' ');
-            // Priority: second hand on top, then minute, hour, then the rim.
-            let (ch, c) = if at(&sc) != ' ' {
+            // The center pin masks the hand joins, then the slender seconds
+            // hand sits above the minute and substantial hour hand.
+            let (ch, c) = if at(&pc) != ' ' {
+                (at(&pc), accent)
+            } else if at(&sc) != ' ' {
                 (at(&sc), sec_c)
             } else if at(&mc) != ' ' {
                 (at(&mc), min_c)

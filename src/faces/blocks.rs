@@ -40,17 +40,16 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     let primary = color::parse(&cfg.color);
     let accent = color::parse(&cfg.accent_color);
 
-    let mut extra: Vec<Line> = Vec::new();
     let fmt = if cfg.hour12 {
         "%I:%M:%S %p"
     } else {
         "%H:%M:%S"
     };
-    extra.push(render::blank());
 
     // Leave a margin so the grid doesn't run into the terminal edges.
     let cols = avail_w.saturating_sub(2).max(1);
-    let rows_avail = avail_h.saturating_sub(extra.len() + 2).max(1);
+    let reserved = 2 + if cfg.show_date { 2 } else { 0 };
+    let rows_avail = avail_h.saturating_sub(reserved).max(1);
     let (step, total) = choose(cols, rows_avail);
     let rows = total.div_ceil(cols);
 
@@ -58,17 +57,25 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
     let done = elapsed / step;
     let frac = elapsed as f64 / DAY_SECS as f64;
 
-    extra.push(render::line(
+    let time = now.format(fmt).to_string();
+    let legend = if avail_w >= 72 {
         format!(
             "{}   ·   1 block = {}   ·   {} / {} blocks   ·   {:.1}% of today",
-            now.format(fmt),
+            time,
             label(step),
             done,
             total,
             frac * 100.0
-        ),
-        color::dim(primary, 0.8),
-    ));
+        )
+    } else if avail_w >= 40 {
+        format!("{time}   ·   {done}/{total}   ·   {:.1}%", frac * 100.0)
+    } else {
+        format!("{time}   ·   {:.1}%", frac * 100.0)
+    };
+    let mut extra = vec![
+        render::blank(),
+        render::line(legend, color::dim(primary, 0.8)),
+    ];
     if cfg.show_date {
         extra.push(render::blank());
         extra.push(render::line(
@@ -99,7 +106,7 @@ pub fn render(now: DateTime<Local>, cfg: &Config, avail_w: usize, avail_h: usize
                 ('\u{2588}', color::lerp(primary, accent, t))
             } else if i == done {
                 // The block currently filling.
-                ('\u{2588}', color::hue(color::SECOND_HUE))
+                ('\u{2588}', accent)
             } else {
                 // Unspent blocks rendered in a uniform dim color.
                 ('\u{00b7}', spent)
