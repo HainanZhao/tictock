@@ -22,7 +22,7 @@ case "$arch" in
 esac
 
 target="${cpu}-${platform}"
-tag="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep -m1 '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')"
+tag="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | sed -nE 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/p')"
 if [ -z "$tag" ]; then
   echo "error: could not determine the latest release" >&2
   exit 1
